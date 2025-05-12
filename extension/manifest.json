@@ -1,21 +1,33 @@
 {
-    "manifest_version": 3,
-    "name": "FocusGate",
-    "version": "1.0",
-    "description": "Block distractions while you're focusing, with AI chat support and proof validation.",
-    "permissions": ["storage", "tabs", "scripting"],
-    "host_permissions": ["<all_urls>"],
-    "action": {
-      "default_popup": "popup.html"
-    },
-    "background": {
-      "service_worker": "background.js"
-    },
-    "content_scripts": [
-      {
-        "matches": ["<all_urls>"],
-        "js": ["content.js"],
-        "run_at": "document_start"
-      }
-    ]
-  }
+  "manifest_version": 3,
+  "name": "FocusGate",
+  "version": "1.0",
+  "description": "AI-powered focus assistant that helps you stay productive by blocking distractions and tracking your progress.",
+  "permissions": [
+    "storage",
+    "declarativeNetRequest",
+    "tabs",
+    "notifications"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "*://*.twitter.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.facebook.com/*",
+    "*://*.instagram.com/*",
+    "*://*.reddit.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}

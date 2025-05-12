@@ -1,22 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>FocusGate</title>
-  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="popup.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
-<body>
-  <div class="chat-container">
-    <div class="chat-header">
-      <h2>🎯 FocusGate</h2>
-    </div>
+<body data-theme="light">
+  <div class="app-container">
+    <header class="navbar">
+      <div class="logo">FocusGate</div>
+      <div class="nav-tabs">
+        <button class="tab-btn active" data-tab="chatTab">
+          <span class="icon">💬</span>
+          <span class="label">Chat</span>
+        </button>
+        <button class="tab-btn" data-tab="dashboardTab">
+          <span class="icon">📊</span>
+          <span class="label">Stats</span>
+        </button>
+        <button class="tab-btn" data-tab="settingsTab">
+          <span class="icon">⚙️</span>
+          <span class="label">Settings</span>
+        </button>
+      </div>
+      <label class="theme-switch">
+        <input type="checkbox" id="themeToggle" />
+        <span class="slider"></span>
+      </label>
+    </header>
 
-    <div class="chat-messages" id="chatLog"></div>
+    <main class="content">
+      <!-- CHAT TAB -->
+      <div id="chatTab" class="tab-content">
+        <div class="chat-header">
+          <h2>Focus Assistant</h2>
+          <div class="focus-status" id="focusStatus">Not in focus mode</div>
+        </div>
+        <div class="chat-messages" id="chatLog"></div>
+        <div class="chat-input-area">
+          <input id="chatInput" type="text" placeholder="What would you like to focus on?" />
+          <button id="sendBtn" class="send-button">
+            <span class="send-icon">➤</span>
+          </button>
+        </div>
+      </div>
 
-    <div class="chat-input-area">
-      <input id="chatInput" type="text" placeholder="Type a message..." />
-      <button id="sendBtn">Send</button>
-    </div>
+      <!-- DASHBOARD TAB -->
+      <div id="dashboardTab" class="tab-content hidden">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">⏱️</div>
+            <div class="stat-content">
+              <h3>Focus Time</h3>
+              <div class="stat-value"><span id="focusHours">0</span> hrs</div>
+              <div class="stat-period">Last 7 days</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🎯</div>
+            <div class="stat-content">
+              <h3>Success Rate</h3>
+              <div class="stat-value"><span id="proofRate">0</span>%</div>
+              <div class="stat-period">Task completion</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🔥</div>
+            <div class="stat-content">
+              <h3>Streak</h3>
+              <div class="stat-value"><span id="streakCount">0</span></div>
+              <div class="stat-period">Days in a row</div>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🚫</div>
+            <div class="stat-content">
+              <h3>Most Blocked</h3>
+              <div class="stat-value" id="mostBlocked">-</div>
+              <div class="stat-period">Distraction site</div>
+            </div>
+          </div>
+        </div>
+        <div class="recent-sessions">
+          <h3>Recent Sessions</h3>
+          <div id="sessionsList" class="sessions-list"></div>
+        </div>
+      </div>
+
+      <!-- SETTINGS TAB -->
+      <div id="settingsTab" class="tab-content hidden">
+        <div class="settings-section">
+          <h3>Focus Settings</h3>
+          <div class="setting-item">
+            <label>Default Focus Duration</label>
+            <select id="defaultDuration">
+              <option value="25">25 minutes</option>
+              <option value="45">45 minutes</option>
+              <option value="60">60 minutes</option>
+            </select>
+          </div>
+          <div class="setting-item">
+            <label>Block Notifications</label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="blockNotifications" />
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="settings-section">
+          <h3>Blocked Sites</h3>
+          <div class="blocked-sites-list" id="blockedSitesList"></div>
+          <button id="addSiteBtn" class="secondary-button">Add Site</button>
+        </div>
+      </div>
+    </main>
   </div>
   <script src="popup.js"></script>
 </body>

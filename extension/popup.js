@@ -1,103 +1,387 @@
-// extension/popup.js
-document.addEventListener("DOMContentLoaded", () => {
-    const sendBtn   = document.getElementById("sendBtn");
-    const chatInput = document.getElementById("chatInput");
+// State Management
+const state = {
+  focusActive: false,
+  currentSession: null,
+  settings: {
+    defaultDuration: 25,
+    blockNotifications: true,
+    blockedSites: []
+  }
+};
+
+// UI Elements
+const elements = {
+  chatInput: document.getElementById('chatInput'),
+  sendBtn: document.getElementById('sendBtn'),
+  chatLog: document.getElementById('chatLog'),
+  focusStatus: document.getElementById('focusStatus'),
+  themeToggle: document.getElementById('themeToggle'),
+  defaultDuration: document.getElementById('defaultDuration'),
+  blockNotifications: document.getElementById('blockNotifications'),
+  blockedSitesList: document.getElementById('blockedSitesList'),
+  addSiteBtn: document.getElementById('addSiteBtn')
+};
+
+// Message Helpers
+function formatTime(date) {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function appendMessage(sender, text, type, timestamp) {
+  const entry = document.createElement('div');
+  entry.className = `message ${type}`;
   
-    // Load previous chat history
-    loadChatHistory();
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.textContent = text;
   
-    // Send button handler
-    sendBtn.addEventListener("click", () => {
-      const message = chatInput.value.trim();
-      if (!message) return;
-      chatInput.value = "";
+  const time = document.createElement('span');
+  time.className = 'timestamp';
+  time.textContent = timestamp;
   
-      const timestamp = new Date().toLocaleTimeString([], {
-        hour:   "2-digit",
-        minute: "2-digit"
-      });
+  entry.appendChild(bubble);
+  entry.appendChild(time);
+  elements.chatLog.appendChild(entry);
+  elements.chatLog.scrollTop = elements.chatLog.scrollHeight;
+}
+
+function appendTyping() {
+  const id = 'typing-' + Date.now();
+  const entry = document.createElement('div');
+  entry.id = id;
+  entry.className = 'message bot typing';
+  entry.innerHTML = '<div class="bubble">FocusBot is thinking...</div>';
+  elements.chatLog.appendChild(entry);
+  elements.chatLog.scrollTop = elements.chatLog.scrollHeight;
+  return id;
+}
+
+function removeTyping(id) {
+  const element = document.getElementById(id);
+  if (element) element.remove();
+}
+
+// Storage Helpers
+async function saveToStorage(key, value) {
+  await chrome.storage.local.set({ [key]: value });
+}
+
+async function getFromStorage(key, defaultValue = null) {
+  const result = await chrome.storage.local.get(key);
+  return result[key] ?? defaultValue;
+}
+
+// Chat History Management
+async function saveMessage(sender, text, time) {
+  const chatHistory = await getFromStorage('chatHistory', []);
+  chatHistory.push({ sender, text, time });
+  if (chatHistory.length > 100) chatHistory.shift();
+  await saveToStorage('chatHistory', chatHistory);
+}
+
+async function loadChatHistory() {
+  const chatHistory = await getFromStorage('chatHistory', []);
+  if (!chatHistory.length) {
+    const intro = [
+      { sender: 'bot', text: "👋 Hi! I'm FocusBot, your AI productivity coach.", time: formatTime(new Date()) },
+      { sender: 'bot', text: "Tell me what you'd like to focus on, and I'll help you stay on track.", time: formatTime(new Date()) }
+    ];
+    await saveToStorage('chatHistory', intro);
+    intro.forEach(m => appendMessage(m.sender, m.text, m.sender === 'bot' ? 'bot' : 'user', m.time));
+  } else {
+    chatHistory.forEach(m => appendMessage(m.sender, m.text, m.sender === 'bot' ? 'bot' : 'user', m.time));
+  }
+}
+
+// Session Management
+async function startFocusSession(task, blockList) {
+  const session = {
+    start: new Date().toISOString(),
+    task,
+    blockList,
+    duration: state.settings.defaultDuration
+  };
   
-      // Display user message
-      appendMessage("You", message, "user", timestamp);
-      saveMessage("user", message, timestamp);
+  state.currentSession = session;
+  state.focusActive = true;
   
-      // Typing indicator
-      const typingId = appendTypingIndicator();
+  await saveToStorage('currentSession', session);
+  await saveToStorage('focusActive', true);
+  await saveToStorage('blockList', blockList);
   
-      // Send to backend
-      fetch("http://localhost:3000/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message })
-      })
-        .then(res => res.json())
-        .then(({ reply }) => {
-          removeTypingIndicator(typingId);
-          const ts = new Date().toLocaleTimeString([], {
-            hour:   "2-digit",
-            minute: "2-digit"
-          });
-          appendMessage("FocusBot", reply, "bot", ts);
-          saveMessage("bot", reply, ts);
-        })
-        .catch(() => {
-          removeTypingIndicator(typingId);
-          const err = "⚠️ Failed to connect to AI.";
-          const ts  = new Date().toLocaleTimeString([], {
-            hour:   "2-digit",
-            minute: "2-digit"
-          });
-          appendMessage("FocusBot", err, "bot", ts);
-          saveMessage("bot", err, ts);
-        });
-    });
+  updateFocusStatus();
+  updateBlockRules();
+}
+
+async function endFocusSession(proofSuccess) {
+  if (!state.currentSession) return;
+  
+  const session = {
+    ...state.currentSession,
+    end: new Date().toISOString(),
+    proofSuccess
+  };
+  
+  const sessionHistory = await getFromStorage('sessionHistory', []);
+  sessionHistory.push(session);
+  await saveToStorage('sessionHistory', sessionHistory);
+  
+  state.currentSession = null;
+  state.focusActive = false;
+  
+  await saveToStorage('currentSession', null);
+  await saveToStorage('focusActive', false);
+  await saveToStorage('blockList', []);
+  
+  updateFocusStatus();
+  updateBlockRules();
+  updateDashboard();
+}
+
+// UI Updates
+function updateFocusStatus() {
+  if (state.focusActive && state.currentSession) {
+    elements.focusStatus.textContent = `Focusing on: ${state.currentSession.task}`;
+    elements.focusStatus.style.color = 'var(--success)';
+  } else {
+    elements.focusStatus.textContent = 'Not in focus mode';
+    elements.focusStatus.style.color = 'var(--text-secondary)';
+  }
+}
+
+async function updateDashboard() {
+  const sessionHistory = await getFromStorage('sessionHistory', []);
+  const now = Date.now();
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  
+  // Calculate stats
+  let focusHours = 0;
+  let successCount = 0;
+  const siteCount = {};
+  const daysSet = new Set();
+  
+  sessionHistory.forEach(session => {
+    const startTime = new Date(session.start).getTime();
+    if (startTime >= weekAgo) {
+      const duration = (new Date(session.end) - new Date(session.start)) / 3600000;
+      focusHours += duration;
+      if (session.proofSuccess) successCount++;
+      session.blockList.forEach(site => siteCount[site] = (siteCount[site] || 0) + 1);
+      daysSet.add(new Date(session.start).toDateString());
+    }
   });
   
-  // ——— Helper functions (unchanged) ———
+  // Update UI
+  document.getElementById('focusHours').textContent = focusHours.toFixed(1);
+  document.getElementById('proofRate').textContent = 
+    sessionHistory.length ? Math.round((successCount / sessionHistory.length) * 100) : 0;
+  document.getElementById('mostBlocked').textContent = 
+    Object.entries(siteCount).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
   
-  function appendMessage(sender, text, type, timestamp) {
-    const log   = document.getElementById("chatLog");
-    const entry = document.createElement("div");
-    entry.className = `message ${type}`;
+  // Calculate streak
+  let streak = 0;
+  for (let i = 0; ; i++) {
+    const date = new Date(now - i * 86400000).toDateString();
+    if (daysSet.has(date)) streak++;
+    else break;
+  }
+  document.getElementById('streakCount').textContent = streak;
+  
+  // Update recent sessions
+  const sessionsList = document.getElementById('sessionsList');
+  sessionsList.innerHTML = '';
+  
+  sessionHistory.slice(-5).reverse().forEach(session => {
+    const entry = document.createElement('div');
+    entry.className = 'session-entry';
     entry.innerHTML = `
-      <div class="bubble">${text}</div>
-      <div class="timestamp">${timestamp}</div>
+      <div class="session-task">${session.task}</div>
+      <div class="session-duration">
+        ${((new Date(session.end) - new Date(session.start)) / 60000).toFixed(0)} min
+      </div>
+      <div class="session-status ${session.proofSuccess ? 'success' : 'failed'}">
+        ${session.proofSuccess ? '✓' : '✗'}
+      </div>
     `;
-    log.appendChild(entry);
-    log.scrollTop = log.scrollHeight;
+    sessionsList.appendChild(entry);
+  });
+}
+
+// Block Rules Management
+async function updateBlockRules() {
+  const rules = await chrome.declarativeNetRequest.getDynamicRules();
+  const removeIds = rules.map(r => r.id);
+  
+  if (removeIds.length) {
+    await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: removeIds });
   }
   
-  function appendTypingIndicator() {
-    const id  = "typing-" + Date.now();
-    const log = document.getElementById("chatLog");
-    const entry = document.createElement("div");
-    entry.id = id;
-    entry.className = "message bot typing";
-    entry.innerHTML = `<div class="bubble">FocusBot is typing...</div>`;
-    log.appendChild(entry);
-    log.scrollTop = log.scrollHeight;
-    return id;
+  if (state.focusActive && state.currentSession?.blockList) {
+    const newRules = state.currentSession.blockList.map((domain, i) => ({
+      id: i + 1,
+      priority: 1,
+      action: { type: 'block' },
+      condition: {
+        urlFilter: `||${domain}^`,
+        resourceTypes: ['main_frame']
+      }
+    }));
+    
+    await chrome.declarativeNetRequest.updateDynamicRules({ addRules: newRules });
   }
+}
+
+// Settings Management
+async function loadSettings() {
+  const settings = await getFromStorage('settings', state.settings);
+  state.settings = settings;
   
-  function removeTypingIndicator(id) {
-    const el = document.getElementById(id);
-    if (el) el.remove();
-  }
+  elements.defaultDuration.value = settings.defaultDuration;
+  elements.blockNotifications.checked = settings.blockNotifications;
   
-  function saveMessage(sender, text, timestamp) {
-    chrome.storage.local.get({ chatHistory: [] }, ({ chatHistory }) => {
-      chatHistory.push({ sender, text, timestamp });
-      if (chatHistory.length > 50) chatHistory.shift();
-      chrome.storage.local.set({ chatHistory });
+  updateBlockedSitesList();
+}
+
+async function saveSettings() {
+  await saveToStorage('settings', state.settings);
+}
+
+function updateBlockedSitesList() {
+  elements.blockedSitesList.innerHTML = '';
+  state.settings.blockedSites.forEach(site => {
+    const entry = document.createElement('div');
+    entry.className = 'blocked-site';
+    entry.innerHTML = `
+      <span>${site}</span>
+      <button class="remove-site" data-site="${site}">×</button>
+    `;
+    elements.blockedSitesList.appendChild(entry);
+  });
+}
+
+// Event Handlers
+async function handleSendMessage() {
+  const text = elements.chatInput.value.trim();
+  if (!text) return;
+  
+  elements.chatInput.value = '';
+  const time = formatTime(new Date());
+  
+  appendMessage('user', text, 'user', time);
+  await saveMessage('user', text, time);
+  
+  const typingId = appendTyping();
+  
+  try {
+    const response = await fetch('http://localhost:3000/api/process-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
     });
+    
+    const data = await response.json();
+    removeTyping(typingId);
+    
+    if (data.intent === 'focus') {
+      await startFocusSession(data.task, data.blockList);
+      appendMessage('bot', `🔒 Focus mode activated for "${data.task}". Blocking: ${data.blockList.join(', ')}`, 'bot', time);
+      await saveMessage('bot', `Focus mode activated for "${data.task}". Blocking: ${data.blockList.join(', ')}`, time);
+    } else if (data.intent === 'proof') {
+      appendMessage('bot', data.proofResult, 'bot', time);
+      await saveMessage('bot', data.proofResult, time);
+      await endFocusSession(data.proofSuccess);
+      
+      if (data.proofSuccess) {
+        appendMessage('bot', '🎉 Great job! Focus session completed successfully.', 'bot', time);
+        await saveMessage('bot', 'Great job! Focus session completed successfully.', time);
+      }
+    } else {
+      appendMessage('bot', data.reply, 'bot', time);
+      await saveMessage('bot', data.reply, time);
+    }
+  } catch (error) {
+    removeTyping(typingId);
+    appendMessage('bot', 'Sorry, I encountered an error. Please try again.', 'bot', time);
+    await saveMessage('bot', 'Sorry, I encountered an error. Please try again.', time);
+  }
+}
+
+// Event Listeners
+elements.sendBtn.addEventListener('click', handleSendMessage);
+elements.chatInput.addEventListener('keypress', e => {
+  if (e.key === 'Enter') handleSendMessage();
+});
+
+elements.themeToggle.addEventListener('change', () => {
+  const theme = elements.themeToggle.checked ? 'dark' : 'light';
+  document.body.setAttribute('data-theme', theme);
+  saveToStorage('theme', theme);
+});
+
+elements.defaultDuration.addEventListener('change', () => {
+  state.settings.defaultDuration = parseInt(elements.defaultDuration.value);
+  saveSettings();
+});
+
+elements.blockNotifications.addEventListener('change', () => {
+  state.settings.blockNotifications = elements.blockNotifications.checked;
+  saveSettings();
+});
+
+elements.addSiteBtn.addEventListener('click', () => {
+  const site = prompt('Enter domain to block (e.g., facebook.com):');
+  if (site && !state.settings.blockedSites.includes(site)) {
+    state.settings.blockedSites.push(site);
+    saveSettings();
+    updateBlockedSitesList();
+  }
+});
+
+elements.blockedSitesList.addEventListener('click', e => {
+  if (e.target.classList.contains('remove-site')) {
+    const site = e.target.dataset.site;
+    state.settings.blockedSites = state.settings.blockedSites.filter(s => s !== site);
+    saveSettings();
+    updateBlockedSitesList();
+  }
+});
+
+// Tab Navigation
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelector('.tab-btn.active').classList.remove('active');
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+    document.getElementById(btn.dataset.tab).classList.remove('hidden');
+  });
+});
+
+// Initialize
+async function initialize() {
+  // Load saved theme
+  const theme = await getFromStorage('theme', 'light');
+  document.body.setAttribute('data-theme', theme);
+  elements.themeToggle.checked = theme === 'dark';
+  
+  // Load settings
+  await loadSettings();
+  
+  // Load chat history
+  await loadChatHistory();
+  
+  // Load current session state
+  const currentSession = await getFromStorage('currentSession');
+  const focusActive = await getFromStorage('focusActive', false);
+  
+  if (currentSession && focusActive) {
+    state.currentSession = currentSession;
+    state.focusActive = true;
+    updateFocusStatus();
   }
   
-  function loadChatHistory() {
-    chrome.storage.local.get({ chatHistory: [] }, ({ chatHistory }) => {
-      chatHistory.forEach(msg => {
-        const type = msg.sender === "bot" ? "bot" : "user";
-        appendMessage(msg.sender, msg.text, type, msg.timestamp);
-      });
-    });
-  }
-  
+  // Update dashboard
+  await updateDashboard();
+}
+
+// Start the app
+initialize();

@@ -1,119 +1,54 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors");
 const bodyParser = require("body-parser");
-const multer = require("multer");
-const path = require("path");
+const cors = require("cors");
 const { OpenAI } = require("openai");
 
 const app = express();
 app.use(cors());
-
-// We'll handle text via bodyParser, files via multer:
 app.use(bodyParser.json());
-const upload = multer({ dest: path.join(__dirname, "uploads/") });
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-const PORT = 3000;
 
-app.get("/", (req, res) => {
-  res.send("🎯 FocusGate server is running!");
-});
-
-// ————————————————
-// Proof-validation endpoint (handles text or image)
-// ————————————————
-app.post(
-  "/api/validate-proof",
-  upload.single("proofImage"),
-  async (req, res) => {
-    const { task, proofText } = req.body;
-    const file = req.file;
-
-    if (!task) {
-      return res
-        .status(400)
-        .json({ success: false, result: "Missing task." });
-    }
-    if (!proofText && !file) {
-      return res
-        .status(400)
-        .json({ success: false, result: "No proof submitted." });
-    }
-
-    try {
-      // If there's an image, accept it directly for MVP:
-      if (file) {
-        return res.json({
-          success: true,
-          result: "✅ Image proof received and accepted!"
-        });
-      }
-
-      // Otherwise, use GPT to validate text proof:
-      const chat = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are an assistant who decides if a user's proof matches the task they were supposed to complete."
-          },
-          {
-            role: "user",
-            content: `Task: ${task}\nProof: ${proofText}\n\nIs this valid proof? Reply with yes or no.`
-          }
-        ]
-      });
-
-      const answer = chat.choices[0].message.content.trim().toLowerCase();
-      if (answer.includes("yes")) {
-        return res.json({
-          success: true,
-          result: "✅ Proof accepted! Distractions unlocked."
-        });
-      } else {
-        return res.json({
-          success: false,
-          result: "❌ Proof not accepted. Please try again."
-        });
-      }
-    } catch (err) {
-      console.error(err);
-      return res
-        .status(500)
-        .json({ success: false, result: "❌ Error contacting GPT." });
-    }
-  }
-);
-
-// ————————————————
-// Chat endpoint (unchanged)
-// ————————————————
-app.post("/api/chat", async (req, res) => {
+// Unified message processor
+app.post("/api/process-message", async (req, res) => {
   const { message } = req.body;
-  if (!message)
-    return res.status(400).json({ reply: "Please enter a message." });
+  if (!message) return res.status(400).json({ intent: "chat", reply: "" });
 
   try {
+    // Ask GPT to classify and handle focus/proof/chat
     const chat = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
-          content:
-            "You are FocusBot, a productivity coach helping users stay focused and complete their tasks."
+          content: `
+You are FocusBot, an AI productivity coach.
+When the user describes their work plan (e.g., "I need to write my essay"), you respond with JSON:
+  {"intent":"focus","task":"...","blockList":["domain1.com","domain2.com",...]}
+
+When the user reports completion/proof of work (e.g., "Here's my draft"), you respond with JSON:
+  {"intent":"proof","proofResult":"...","proofSuccess":true|false}
+
+For any other messages, you respond with JSON:
+  {"intent":"chat","reply":"..."}
+Only output valid JSON without any extra text.
+`
         },
         { role: "user", content: message }
       ]
     });
-    res.json({ reply: chat.choices[0].message.content.trim() });
+
+    const payload = JSON.parse(chat.choices[0].message.content.trim());
+    return res.json(payload);
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ reply: "⚠️ Error contacting GPT." });
+    // On error, fallback to simple chat
+    return res.status(500).json({ intent: "chat", reply: "Sorry, I hit an error." });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 FocusGate server running at http://localhost:${PORT}`);
-});
+// Keep your existing /api/validate-proof and /api/chat routes if you still need them
+
+app.listen(3000, () => console.log("🚀 FocusGate server running on port 3000"));
