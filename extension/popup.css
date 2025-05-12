@@ -1,0 +1,109 @@
+/* Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap');
+
+:root {
+  --gradient-start: #2A2A72;
+  --gradient-end:   #009FFD;
+  --glass-bg:       rgba(255,255,255,0.15);
+  --input-bg:       rgba(255,255,255,0.9);
+  --user-bg:        #339af0;
+  --bot-bg:         rgba(255,255,255,0.8);
+  --font:           'Roboto', sans-serif;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+body {
+  width: 350px;
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  font-family: var(--font);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Chat Container */
+.chat-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 10px;
+}
+
+/* Header */
+.chat-header {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.1em;
+}
+
+/* Messages Area */
+.chat-messages {
+  flex: 1 1 auto;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 10px;
+  overflow-y: auto;
+  margin: 8px 0;
+}
+
+/* Input Area */
+.chat-input-area {
+  flex: 0 0 40px;
+  display: flex;
+}
+.chat-input-area input {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 20px;
+  background: var(--input-bg);
+  outline: none;
+  font-size: 14px;
+}
+.chat-input-area button {
+  margin-left: 8px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 20px;
+  background: var(--user-bg);
+  color: white;
+  cursor: pointer;
+}
+
+/* Message Bubbles */
+.message {
+  display: flex;
+  max-width: 100%;
+  margin-bottom: 8px;
+}
+.message.user {
+  justify-content: flex-end;
+}
+.message.bot {
+  justify-content: flex-start;
+}
+.message .bubble {
+  padding: 8px 12px;
+  border-radius: 15px;
+  line-height: 1.4;
+}
+.message.user .bubble {
+  background: var(--user-bg);
+  color: white;
+  border-bottom-right-radius: 4px;
+  max-width: 70%;
+}
+.message.bot .bubble {
+  background: var(--bot-bg);
+  color: black;
+  border-bottom-left-radius: 4px;
+  max-width: 70%;
+}

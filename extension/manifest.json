@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "FocusGate",
     "version": "1.0",
-    "description": "Block distracting sites while you're focusing, unless AI approves your proof of work.",
+    "description": "Block distractions while you're focusing, with AI chat support and proof validation.",
     "permissions": ["storage", "tabs", "scripting"],
     "host_permissions": ["<all_urls>"],
     "action": {
@@ -19,4 +19,3 @@
       }
     ]
   }
-  
