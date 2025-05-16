@@ -94,12 +94,24 @@ async function loadChatHistory() {
 }
 
 // Session Management
-async function startFocusSession(task, blockList) {
+async function startFocusSession(task, blockList, duration) {
   const session = {
     start: new Date().toISOString(),
-    task,
-    blockList,
-    duration: state.settings.defaultDuration
+    task: "Focus Session",
+    blockList: [
+      "youtube.com",
+      "facebook.com",
+      "twitter.com",
+      "reddit.com",
+      "instagram.com",
+      "pinterest.com",
+      "linkedin.com",
+      "snapchat.com",
+      "discord.com",
+      "twitch.tv",
+      "tumblr.com"
+    ],
+    duration: duration || state.settings.defaultDuration
   };
   
   state.currentSession = session;
@@ -107,7 +119,7 @@ async function startFocusSession(task, blockList) {
   
   await saveToStorage('currentSession', session);
   await saveToStorage('focusActive', true);
-  await saveToStorage('blockList', blockList);
+  await saveToStorage('blockList', session.blockList);
   
   updateFocusStatus();
   updateBlockRules();
@@ -233,30 +245,18 @@ async function updateBlockRules() {
 
 // Settings Management
 async function loadSettings() {
-  const settings = await getFromStorage('settings', state.settings);
+  const settings = await getFromStorage('settings', {
+    defaultDuration: 25,
+    blockNotifications: true
+  });
   state.settings = settings;
   
   elements.defaultDuration.value = settings.defaultDuration;
   elements.blockNotifications.checked = settings.blockNotifications;
-  
-  updateBlockedSitesList();
 }
 
 async function saveSettings() {
   await saveToStorage('settings', state.settings);
-}
-
-function updateBlockedSitesList() {
-  elements.blockedSitesList.innerHTML = '';
-  state.settings.blockedSites.forEach(site => {
-    const entry = document.createElement('div');
-    entry.className = 'blocked-site';
-    entry.innerHTML = `
-      <span>${site}</span>
-      <button class="remove-site" data-site="${site}">×</button>
-    `;
-    elements.blockedSitesList.appendChild(entry);
-  });
 }
 
 // Event Handlers
@@ -283,18 +283,44 @@ async function handleSendMessage() {
     removeTyping(typingId);
     
     if (data.intent === 'focus') {
-      await startFocusSession(data.task, data.blockList);
-      appendMessage('bot', `🔒 Focus mode activated for "${data.task}". Blocking: ${data.blockList.join(', ')}`, 'bot', time);
-      await saveMessage('bot', `Focus mode activated for "${data.task}". Blocking: ${data.blockList.join(', ')}`, time);
-    } else if (data.intent === 'proof') {
-      appendMessage('bot', data.proofResult, 'bot', time);
-      await saveMessage('bot', data.proofResult, time);
-      await endFocusSession(data.proofSuccess);
-      
+      await startFocusSession(data.task, data.blockList, data.duration);
+      appendMessage('bot', `🔒 Focus mode activated for ${data.duration} minutes. Blocking distracting websites.`, 'bot', time);
+      await saveMessage('bot', `Focus mode activated for ${data.duration} minutes. Blocking distracting websites.`, time);
+    } else if (data.intent === 'unblock_request') {
+      appendMessage('bot', data.reply, 'bot', time);
+      await saveMessage('bot', data.reply, time);
+    } else if (data.intent === 'unblock_verify') {
       if (data.proofSuccess) {
+        await endFocusSession(true);
+        appendMessage('bot', data.proofResult, 'bot', time);
+        await saveMessage('bot', data.proofResult, time);
         appendMessage('bot', '🎉 Great job! Focus session completed successfully.', 'bot', time);
         await saveMessage('bot', 'Great job! Focus session completed successfully.', time);
+      } else {
+        appendMessage('bot', 'Please provide clear proof of your completed work.', 'bot', time);
+        await saveMessage('bot', 'Please provide clear proof of your completed work.', time);
       }
+    } else if (data.intent === 'temp_access') {
+      // Store current session state
+      const currentSession = state.currentSession;
+      const currentBlockList = state.currentSession?.blockList;
+      
+      // Temporarily disable blocking
+      await saveToStorage('blockList', []);
+      await updateBlockRules();
+      
+      appendMessage('bot', data.reply, 'bot', time);
+      await saveMessage('bot', data.reply, time);
+      
+      // Set timeout to restore blocking
+      setTimeout(async () => {
+        if (currentSession && currentBlockList) {
+          await saveToStorage('blockList', currentBlockList);
+          await updateBlockRules();
+          appendMessage('bot', '⏰ Temporary access ended. Focus mode restored.', 'bot', formatTime(new Date()));
+          await saveMessage('bot', 'Temporary access ended. Focus mode restored.', formatTime(new Date()));
+        }
+      }, data.duration * 60 * 1000);
     } else {
       appendMessage('bot', data.reply, 'bot', time);
       await saveMessage('bot', data.reply, time);
@@ -326,24 +352,6 @@ elements.defaultDuration.addEventListener('change', () => {
 elements.blockNotifications.addEventListener('change', () => {
   state.settings.blockNotifications = elements.blockNotifications.checked;
   saveSettings();
-});
-
-elements.addSiteBtn.addEventListener('click', () => {
-  const site = prompt('Enter domain to block (e.g., facebook.com):');
-  if (site && !state.settings.blockedSites.includes(site)) {
-    state.settings.blockedSites.push(site);
-    saveSettings();
-    updateBlockedSitesList();
-  }
-});
-
-elements.blockedSitesList.addEventListener('click', e => {
-  if (e.target.classList.contains('remove-site')) {
-    const site = e.target.dataset.site;
-    state.settings.blockedSites = state.settings.blockedSites.filter(s => s !== site);
-    saveSettings();
-    updateBlockedSitesList();
-  }
 });
 
 // Tab Navigation

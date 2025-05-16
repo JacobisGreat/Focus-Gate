@@ -11,11 +11,16 @@
   ],
   "host_permissions": [
     "*://*.youtube.com/*",
-    "*://*.twitter.com/*",
-    "*://*.tiktok.com/*",
     "*://*.facebook.com/*",
+    "*://*.twitter.com/*",
+    "*://*.reddit.com/*",
     "*://*.instagram.com/*",
-    "*://*.reddit.com/*"
+    "*://*.pinterest.com/*",
+    "*://*.linkedin.com/*",
+    "*://*.snapchat.com/*",
+    "*://*.discord.com/*",
+    "*://*.twitch.tv/*",
+    "*://*.tumblr.com/*"
   ],
   "action": {
     "default_popup": "popup.html"

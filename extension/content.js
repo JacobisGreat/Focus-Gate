@@ -51,75 +51,42 @@ function showBlockScreen() {
         }
         
         .focusgate-block-screen h1 {
-          font-size: 2rem;
+          font-size: 2.5rem;
           margin-bottom: 1rem;
           color: #f43f5e;
-        }
-        
-        .focusgate-block-screen p {
-          font-size: 1.1rem;
-          margin-bottom: 0.5rem;
-          opacity: 0.9;
+          font-weight: 700;
         }
         
         .focusgate-block-screen .task {
-          font-size: 1.2rem;
+          font-size: 1.4rem;
           font-weight: 600;
-          margin: 1rem 0;
+          margin: 1.5rem 0;
           color: #6366f1;
+          max-width: 600px;
+          line-height: 1.4;
         }
         
         .focusgate-block-screen .timer {
-          font-size: 2.5rem;
+          font-size: 4rem;
           font-weight: 700;
-          margin: 1rem 0;
+          margin: 2rem 0;
           color: #22c55e;
+          font-family: monospace;
         }
         
-        .focusgate-block-screen .actions {
-          margin-top: 2rem;
-          display: flex;
-          gap: 1rem;
-        }
-        
-        .focusgate-block-screen button {
-          padding: 0.75rem 1.5rem;
-          border: none;
-          border-radius: 0.5rem;
-          font-size: 1rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        
-        .focusgate-block-screen .complete-btn {
-          background: #22c55e;
-          color: white;
-        }
-        
-        .focusgate-block-screen .complete-btn:hover {
-          background: #16a34a;
-        }
-        
-        .focusgate-block-screen .override-btn {
-          background: #f43f5e;
-          color: white;
-        }
-        
-        .focusgate-block-screen .override-btn:hover {
-          background: #e11d48;
+        .focusgate-block-screen .motivation {
+          font-size: 1.2rem;
+          margin: 1rem 0;
+          color: #94a3b8;
+          max-width: 500px;
+          line-height: 1.5;
         }
       </style>
       
       <h1>🚫 Focus Mode Active</h1>
-      <p>This site is currently blocked to help you stay focused on:</p>
       <div class="task">${task}</div>
-      <p>Time remaining:</p>
       <div class="timer">${Math.floor(remaining)}:${Math.floor((remaining % 1) * 60).toString().padStart(2, '0')}</div>
-      <div class="actions">
-        <button class="complete-btn" onclick="completeTask()">I've Completed My Task</button>
-        <button class="override-btn" onclick="overrideBlock()">Override Block</button>
-      </div>
+      <div class="motivation">Stay focused on your goal. Every minute counts towards your success!</div>
     `;
     
     document.documentElement.innerHTML = '';
@@ -136,45 +103,22 @@ function showBlockScreen() {
         clearInterval(timerInterval);
         timerElement.textContent = "Time's up!";
         timerElement.style.color = '#f43f5e';
+        
+        // Show completion message
+        const motivation = blockScreen.querySelector('.motivation');
+        motivation.textContent = "Great job staying focused! Your session is complete.";
+        motivation.style.color = '#22c55e';
+        
+        // End the session
+        chrome.runtime.sendMessage({
+          type: 'taskComplete',
+          session: currentSession
+        });
       } else {
         timerElement.textContent = `${Math.floor(remaining)}:${Math.floor((remaining % 1) * 60).toString().padStart(2, '0')}`;
       }
     }, 1000);
   });
-}
-
-// Handle task completion
-async function completeTask() {
-  const { currentSession } = await chrome.storage.local.get(['currentSession']);
-  
-  if (currentSession) {
-    // Send completion message to popup
-    chrome.runtime.sendMessage({
-      type: 'taskComplete',
-      session: currentSession
-    });
-  }
-  
-  // Remove block screen
-  isBlocked = false;
-  window.location.reload();
-}
-
-// Handle block override
-async function overrideBlock() {
-  const { currentSession } = await chrome.storage.local.get(['currentSession']);
-  
-  if (currentSession) {
-    // Send override message to popup
-    chrome.runtime.sendMessage({
-      type: 'blockOverride',
-      session: currentSession
-    });
-  }
-  
-  // Remove block screen
-  isBlocked = false;
-  window.location.reload();
 }
 
 // Initialize
